@@ -1,0 +1,135 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+VERSION="1.0.0"
+REPO="https://raw.githubusercontent.com/krezer1422-netizen/pytool/main/pytool"
+
+BASHRC="$HOME/.bashrc"
+STATE="$HOME/.pytool_auto_python"
+
+# O'rnatish rejimi
+if [ "${0##*/}" = "bash" ]; then
+
+    if [ -z "$PREFIX" ]; then
+        echo "Faqat Termux qo'llab-quvvatlanadi."
+        exit 1
+    fi
+
+    if ! command -v python >/dev/null 2>&1; then
+        echo "Python o'rnatilmagan!"
+        exit 1
+    fi
+
+    mkdir -p "$PREFIX/bin" || exit 1
+
+    TMP="$PREFIX/bin/pytool.tmp"
+
+    curl -fsSL "$REPO" -o "$TMP" || {
+        rm -f "$TMP"
+        exit 1
+    }
+
+    chmod +x "$TMP"
+    mv "$TMP" "$PREFIX/bin/pytool" || exit 1
+
+    ln -sf "$PREFIX/bin/pytool" "$PREFIX/bin/py"
+    ln -sf "$PREFIX/bin/pytool" "$PREFIX/bin/-py"
+    ln -sf "$PREFIX/bin/pytool" "$PREFIX/bin/=py"
+
+    echo "PyTool o'rnatildi!"
+    exit 0
+fi
+
+# Buyruqni aniqlash
+CMD="${0##*/}"
+
+# Python qisqa rejimini yoqish
+if [ "$CMD" = "-py" ]; then
+
+    touch "$STATE"
+
+    if ! grep -qF '# >>> PYTOOL AUTO PYTHON >>>' "$BASHRC" 2>/dev/null; then
+
+        cat >> "$BASHRC" <<'PYTOOL_BLOCK'
+
+# >>> PYTOOL AUTO PYTHON >>>
+command_not_found_handle() {
+    local cmd="$1"
+    shift
+
+    if [ -f "$HOME/.pytool_auto_python" ] &&
+       [[ "$cmd" == *.py ]] &&
+       [ -f "$cmd" ]; then
+        command python "$cmd" "$@"
+        return $?
+    fi
+
+    printf 'bash: %s: command not found\n' "$cmd" >&2
+    return 127
+}
+# <<< PYTOOL AUTO PYTHON <<<
+
+PYTOOL_BLOCK
+
+    fi
+
+    echo "Python qisqa rejimi yoqildi."
+    echo "Faollashtirish uchun: source ~/.bashrc"
+    exit 0
+fi
+
+# Asl holatga qaytarish
+if [ "$CMD" = "=py" ]; then
+
+    rm -f "$STATE"
+
+    if [ -f "$BASHRC" ]; then
+        TMP_BASHRC="$BASHRC.pytool.tmp"
+
+        awk '
+        /# >>> PYTOOL AUTO PYTHON >>>/ { skip=1; next }
+        /# <<< PYTOOL AUTO PYTHON <<</ { skip=0; next }
+        !skip { print }
+        ' "$BASHRC" > "$TMP_BASHRC" && mv "$TMP_BASHRC" "$BASHRC"
+    fi
+
+    echo "Python asl holatiga qaytarildi."
+    exit 0
+fi
+
+# Python versiyasi
+if [ "$1" = "-v" ]; then
+    python --version
+    exit 0
+fi
+
+# Qo'llanma
+if [ "$1" = "-h" ]; then
+    cat <<'HELP'
+PyTool v1.0.0
+
+Python command tool for Termux
+
+COMMANDS:
+
+  -py       Enable short Python mode
+  =py       Restore original mode
+  py -v     Show Python version
+  py -h     Show this help
+
+EXAMPLE:
+
+  -py
+
+  test.py
+
+  =py
+
+  python test.py
+HELP
+    exit 0
+fi
+
+echo "PyTool v$VERSION"
+echo "Foydalanish: py -h"
+exit 0
+
